@@ -1,16 +1,14 @@
 import requests
 import json
-import time
 import sys
 from datetime import datetime
 
-class AIAdGenerationTester:
+class AIImageGenerationTester:
     def __init__(self, base_url="https://c42da218-54b2-49bf-b4ae-ad3df2c29e0d.preview.emergentagent.com"):
         self.base_url = base_url
         self.tests_run = 0
         self.tests_passed = 0
-        self.company_id = None
-        self.ad_id = None
+        self.generated_image_id = None
 
     def run_test(self, name, method, endpoint, expected_status, data=None):
         """Run a single API test"""
@@ -58,172 +56,126 @@ class AIAdGenerationTester:
         )
         if success:
             print(f"Health Status: {response}")
+            print(f"AI Service Mode: {response.get('ai_service', 'unknown')}")
+            print(f"Model: {response.get('model', 'unknown')}")
         return success
 
-    def test_create_company(self):
-        """Test creating a company"""
-        company_data = {
-            "name": f"Test Company {datetime.now().strftime('%H%M%S')}",
-            "industry": "Technology",
-            "product_service": "AI Testing Services",
-            "target_audience": "Developers and QA Engineers",
-            "brand_description": "We provide comprehensive testing for AI applications",
-            "website": "https://example.com"
+    def test_generate_image(self):
+        """Test generating an image"""
+        image_data = {
+            "prompt": f"A beautiful mountain landscape at sunset {datetime.now().strftime('%H%M%S')}",
+            "style": "realistic",
+            "size": "512x512"
         }
         
         success, response = self.run_test(
-            "Create Company",
+            "Generate Image",
             "POST",
-            "/api/companies",
+            "/api/generate-image",
             200,
-            data=company_data
+            data=image_data
         )
         
         if success and 'id' in response:
-            self.company_id = response['id']
-            print(f"Created company with ID: {self.company_id}")
-        
-        return success
-
-    def test_get_companies(self):
-        """Test getting all companies"""
-        success, response = self.run_test(
-            "Get Companies",
-            "GET",
-            "/api/companies",
-            200
-        )
-        
-        if success:
-            print(f"Retrieved {len(response)} companies")
-            if len(response) > 0:
-                print(f"First company: {response[0]['name']}")
-        
-        return success
-
-    def test_get_company(self):
-        """Test getting a specific company"""
-        if not self.company_id:
-            print("❌ Cannot test get_company - No company ID available")
-            return False
-            
-        success, response = self.run_test(
-            "Get Company by ID",
-            "GET",
-            f"/api/companies/{self.company_id}",
-            200
-        )
-        
-        if success:
-            print(f"Retrieved company: {response['name']}")
-        
-        return success
-
-    def test_generate_ad(self):
-        """Test generating an ad"""
-        if not self.company_id:
-            print("❌ Cannot test generate_ad - No company ID available")
-            return False
-            
-        ad_data = {
-            "company_id": self.company_id,
-            "ad_type": "banner",
-            "style": "modern",
-            "custom_prompt": "Show our product in action with happy customers"
-        }
-        
-        success, response = self.run_test(
-            "Generate Ad",
-            "POST",
-            "/api/generate-ad",
-            200,
-            data=ad_data
-        )
-        
-        if success and 'id' in response:
-            self.ad_id = response['id']
-            print(f"Generated ad with ID: {self.ad_id}")
+            self.generated_image_id = response['id']
+            print(f"Generated image with ID: {self.generated_image_id}")
             print(f"Image data length: {len(response['image_data']) if 'image_data' in response else 'N/A'} characters")
         
         return success
 
-    def test_get_company_ads(self):
-        """Test getting ads for a company"""
-        if not self.company_id:
-            print("❌ Cannot test get_company_ads - No company ID available")
-            return False
-            
+    def test_get_images(self):
+        """Test getting image history"""
         success, response = self.run_test(
-            "Get Company Ads",
+            "Get Image History",
             "GET",
-            f"/api/ads/{self.company_id}",
+            "/api/images",
             200
         )
         
         if success:
-            print(f"Retrieved {len(response)} ads for company")
+            images = response.get('images', [])
+            total = response.get('total', 0)
+            print(f"Retrieved {len(images)} images out of {total} total")
+            if len(images) > 0:
+                print(f"First image prompt: {images[0].get('prompt', 'N/A')}")
         
         return success
 
-    def test_get_all_ads(self):
-        """Test getting all ads"""
+    def test_get_image_by_id(self):
+        """Test getting a specific image by ID"""
+        if not self.generated_image_id:
+            print("❌ Cannot test get_image_by_id - No image ID available")
+            return False
+            
         success, response = self.run_test(
-            "Get All Ads",
+            "Get Image by ID",
             "GET",
-            "/api/ads",
+            f"/api/images/{self.generated_image_id}",
             200
         )
         
         if success:
-            print(f"Retrieved {len(response)} total ads")
+            print(f"Retrieved image with prompt: {response.get('prompt', 'N/A')}")
         
         return success
 
-    def test_delete_ad(self):
-        """Test deleting an ad"""
-        if not self.ad_id:
-            print("❌ Cannot test delete_ad - No ad ID available")
+    def test_delete_image(self):
+        """Test deleting an image"""
+        if not self.generated_image_id:
+            print("❌ Cannot test delete_image - No image ID available")
             return False
             
         success, response = self.run_test(
-            "Delete Ad",
+            "Delete Image",
             "DELETE",
-            f"/api/ads/{self.ad_id}",
+            f"/api/images/{self.generated_image_id}",
             200
         )
         
         if success:
-            print(f"Successfully deleted ad: {response.get('message', '')}")
+            print(f"Successfully deleted image: {response.get('message', '')}")
+        
+        return success
+
+    def test_clear_history(self):
+        """Test clearing all image history"""
+        success, response = self.run_test(
+            "Clear Image History",
+            "DELETE",
+            "/api/images",
+            200
+        )
+        
+        if success:
+            print(f"Successfully cleared image history: {response.get('message', '')}")
         
         return success
 
     def run_all_tests(self):
         """Run all API tests"""
-        print("🚀 Starting AI Ad Generation API Tests")
-        print("======================================")
+        print("🚀 Starting AI Image Generation API Tests")
+        print("========================================")
         
         # Basic health check
         self.test_health()
         
-        # Company tests
-        self.test_create_company()
-        self.test_get_companies()
-        self.test_get_company()
+        # Image generation and retrieval tests
+        self.test_generate_image()
+        self.test_get_images()
+        self.test_get_image_by_id()
         
-        # Ad tests
-        self.test_generate_ad()
-        self.test_get_company_ads()
-        self.test_get_all_ads()
-        self.test_delete_ad()
+        # Cleanup tests
+        self.test_delete_image()
+        self.test_clear_history()
         
         # Print results
         print("\n📊 Test Results")
         print("==============")
-        print(f"Tests passed: {self.tests_passed}/{self.tests_run} ({self.tests_passed/self.tests_run*100:.1f}%)")
+        print(f"Tests passed: {self.tests_passed}/{self.tests_run} ({self.tests_passed/self.tests_run*100:.1f}% success rate)")
         
         return self.tests_passed == self.tests_run
 
 if __name__ == "__main__":
-    tester = AIAdGenerationTester()
+    tester = AIImageGenerationTester()
     success = tester.run_all_tests()
     sys.exit(0 if success else 1)
