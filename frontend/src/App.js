@@ -4,134 +4,64 @@ import './App.css';
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
 function App() {
-  const [currentView, setCurrentView] = useState('companies');
-  const [companies, setCompanies] = useState([]);
-  const [selectedCompany, setSelectedCompany] = useState(null);
-  const [generatedAds, setGeneratedAds] = useState([]);
+  const [prompt, setPrompt] = useState('');
+  const [style, setStyle] = useState('realistic');
+  const [size, setSize] = useState('512x512');
+  const [generatedImages, setGeneratedImages] = useState([]);
+  const [currentImage, setCurrentImage] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
-  // Company form state
-  const [companyForm, setCompanyForm] = useState({
-    name: '',
-    industry: '',
-    product_service: '',
-    target_audience: '',
-    brand_description: '',
-    website: ''
-  });
-
-  // Ad generation form state
-  const [adForm, setAdForm] = useState({
-    ad_type: 'banner',
-    style: 'modern',
-    custom_prompt: ''
-  });
-
-  // Load companies on mount
+  // Load image history on mount
   useEffect(() => {
-    loadCompanies();
+    loadImageHistory();
   }, []);
 
-  const loadCompanies = async () => {
+  const loadImageHistory = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/companies`);
+      const response = await fetch(`${API_URL}/api/images`);
       const data = await response.json();
-      setCompanies(data);
+      setGeneratedImages(data.images || []);
     } catch (err) {
-      setError('Failed to load companies');
-      console.error('Error loading companies:', err);
+      console.error('Error loading image history:', err);
     }
   };
 
-  const handleCreateCompany = async (e) => {
+  const handleGenerateImage = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch(`${API_URL}/api/companies`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(companyForm),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create company');
-      }
-
-      const newCompany = await response.json();
-      setCompanies([...companies, newCompany]);
-      setCompanyForm({
-        name: '',
-        industry: '',
-        product_service: '',
-        target_audience: '',
-        brand_description: '',
-        website: ''
-      });
-      setCurrentView('companies');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGenerateAd = async (e) => {
-    e.preventDefault();
-    if (!selectedCompany) return;
+    if (!prompt.trim()) return;
 
     setIsLoading(true);
     setError('');
+    setCurrentImage(null);
 
     try {
-      const response = await fetch(`${API_URL}/api/generate-ad`, {
+      const response = await fetch(`${API_URL}/api/generate-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          company_id: selectedCompany.id,
-          ...adForm
+          prompt: prompt.trim(),
+          style,
+          size
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate ad');
+        throw new Error('Failed to generate image');
       }
 
-      const newAd = await response.json();
-      setGeneratedAds([newAd, ...generatedAds]);
-      setAdForm({
-        ad_type: 'banner',
-        style: 'modern',
-        custom_prompt: ''
-      });
+      const newImage = await response.json();
+      setCurrentImage(newImage);
+      setGeneratedImages([newImage, ...generatedImages]);
+      
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to generate image');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const loadCompanyAds = async (companyId) => {
-    try {
-      const response = await fetch(`${API_URL}/api/ads/${companyId}`);
-      const data = await response.json();
-      setGeneratedAds(data);
-    } catch (err) {
-      setError('Failed to load ads');
-      console.error('Error loading ads:', err);
-    }
-  };
-
-  const selectCompany = (company) => {
-    setSelectedCompany(company);
-    setCurrentView('generate');
-    loadCompanyAds(company.id);
   };
 
   const downloadImage = (imageData, filename) => {
@@ -141,37 +71,62 @@ function App() {
     link.click();
   };
 
+  const clearHistory = async () => {
+    if (window.confirm('Are you sure you want to clear all image history?')) {
+      try {
+        await fetch(`${API_URL}/api/images`, { method: 'DELETE' });
+        setGeneratedImages([]);
+        setCurrentImage(null);
+      } catch (err) {
+        setError('Failed to clear history');
+      }
+    }
+  };
+
+  const examplePrompts = [
+    "A futuristic cityscape at sunset with flying cars",
+    "A magical forest with glowing mushrooms and fairy lights",
+    "A steampunk robot playing chess with a cat",
+    "A cozy library with books floating in the air",
+    "A space station orbiting a colorful nebula",
+    "A dragon sleeping on a pile of golden coins",
+    "A cyberpunk street market with neon lights",
+    "A peaceful zen garden with a flowing waterfall"
+  ];
+
+  const fillExamplePrompt = (examplePrompt) => {
+    setPrompt(examplePrompt);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100">
       {/* Header */}
       <header className="bg-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-900">
-              🎨 AI Ad Generator
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+              🎨 AI Image Generator
             </h1>
-            <nav className="flex space-x-4">
+            <div className="flex space-x-4">
               <button
-                onClick={() => setCurrentView('companies')}
-                className={`px-4 py-2 rounded-lg transition-all ${
-                  currentView === 'companies'
-                    ? 'bg-blue-600 text-white'
+                onClick={() => setShowHistory(!showHistory)}
+                className={`px-4 py-2 rounded-lg transition-all font-medium ${
+                  showHistory
+                    ? 'bg-purple-600 text-white shadow-lg'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                Companies
+                {showHistory ? 'Hide History' : 'Show History'}
               </button>
-              <button
-                onClick={() => setCurrentView('create')}
-                className={`px-4 py-2 rounded-lg transition-all ${
-                  currentView === 'create'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                Add Company
-              </button>
-            </nav>
+              {generatedImages.length > 0 && (
+                <button
+                  onClick={clearHistory}
+                  className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors font-medium"
+                >
+                  Clear History
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -179,7 +134,7 @@ function App() {
       {/* Error Message */}
       {error && (
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
             {error}
           </div>
         </div>
@@ -187,251 +142,165 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Companies View */}
-        {currentView === 'companies' && (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Companies</h2>
-            {companies.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">No companies yet. Create your first company to get started!</p>
-                <button
-                  onClick={() => setCurrentView('create')}
-                  className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Create Company
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {companies.map((company) => (
-                  <div
-                    key={company.id}
-                    className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => selectCompany(company)}
-                  >
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{company.name}</h3>
-                    <p className="text-gray-600 mb-1">Industry: {company.industry}</p>
-                    <p className="text-gray-600 mb-1">Product: {company.product_service}</p>
-                    <p className="text-gray-600 mb-4">Target: {company.target_audience}</p>
-                    <button className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                      Generate Ads
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Create Company View */}
-        {currentView === 'create' && (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Company</h2>
-            <div className="bg-white rounded-lg shadow-md p-6 max-w-2xl mx-auto">
-              <form onSubmit={handleCreateCompany} className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* Left Column - Generation Form */}
+          <div className="space-y-6">
+            
+            {/* Generation Form */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Generate Your Image</h2>
+              
+              <form onSubmit={handleGenerateImage} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Company Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={companyForm.name}
-                    onChange={(e) => setCompanyForm({...companyForm, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Industry *
-                  </label>
-                  <input
-                    type="text"
-                    value={companyForm.industry}
-                    onChange={(e) => setCompanyForm({...companyForm, industry: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Product/Service *
-                  </label>
-                  <input
-                    type="text"
-                    value={companyForm.product_service}
-                    onChange={(e) => setCompanyForm({...companyForm, product_service: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Target Audience *
-                  </label>
-                  <input
-                    type="text"
-                    value={companyForm.target_audience}
-                    onChange={(e) => setCompanyForm({...companyForm, target_audience: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Brand Description
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Describe your image
                   </label>
                   <textarea
-                    value={companyForm.brand_description}
-                    onChange={(e) => setCompanyForm({...companyForm, brand_description: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows="3"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="A beautiful landscape with mountains and a lake at golden hour..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 resize-none"
+                    rows="4"
+                    required
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Website
-                  </label>
-                  <input
-                    type="url"
-                    value={companyForm.website}
-                    onChange={(e) => setCompanyForm({...companyForm, website: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {isLoading ? 'Creating...' : 'Create Company'}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
 
-        {/* Generate Ad View */}
-        {currentView === 'generate' && selectedCompany && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">
-                Generate Ads for {selectedCompany.name}
-              </h2>
-              <button
-                onClick={() => setCurrentView('companies')}
-                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Back to Companies
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Ad Generation Form */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Create New Ad</h3>
-                <form onSubmit={handleGenerateAd} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Ad Type
-                    </label>
-                    <select
-                      value={adForm.ad_type}
-                      onChange={(e) => setAdForm({...adForm, ad_type: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="banner">Banner</option>
-                      <option value="square">Square</option>
-                      <option value="story">Story</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Style
                     </label>
                     <select
-                      value={adForm.style}
-                      onChange={(e) => setAdForm({...adForm, style: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={style}
+                      onChange={(e) => setStyle(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                     >
-                      <option value="modern">Modern</option>
-                      <option value="classic">Classic</option>
-                      <option value="minimalist">Minimalist</option>
-                      <option value="bold">Bold</option>
+                      <option value="realistic">Realistic</option>
+                      <option value="artistic">Artistic</option>
+                      <option value="cartoon">Cartoon</option>
+                      <option value="professional">Professional</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Custom Prompt (Optional)
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Size
                     </label>
-                    <textarea
-                      value={adForm.custom_prompt}
-                      onChange={(e) => setAdForm({...adForm, custom_prompt: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows="3"
-                      placeholder="Additional requirements for your ad..."
-                    />
+                    <select
+                      value={size}
+                      onChange={(e) => setSize(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                    >
+                      <option value="512x512">Square (512x512)</option>
+                      <option value="768x512">Landscape (768x512)</option>
+                      <option value="512x768">Portrait (512x768)</option>
+                    </select>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-                  >
-                    {isLoading ? 'Generating...' : 'Generate Ad'}
-                  </button>
-                </form>
-              </div>
-
-              {/* Company Info */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Company Details</h3>
-                <div className="space-y-2">
-                  <p><strong>Industry:</strong> {selectedCompany.industry}</p>
-                  <p><strong>Product:</strong> {selectedCompany.product_service}</p>
-                  <p><strong>Target Audience:</strong> {selectedCompany.target_audience}</p>
-                  {selectedCompany.brand_description && (
-                    <p><strong>Brand:</strong> {selectedCompany.brand_description}</p>
-                  )}
-                  {selectedCompany.website && (
-                    <p><strong>Website:</strong> 
-                      <a href={selectedCompany.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1">
-                        {selectedCompany.website}
-                      </a>
-                    </p>
-                  )}
                 </div>
-              </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading || !prompt.trim()}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-2"></div>
+                      Generating...
+                    </div>
+                  ) : (
+                    'Generate Image ✨'
+                  )}
+                </button>
+              </form>
             </div>
 
-            {/* Generated Ads */}
-            {generatedAds.length > 0 && (
-              <div className="mt-8">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Generated Ads</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {generatedAds.map((ad) => (
-                    <div key={ad.id} className="bg-white rounded-lg shadow-md p-4">
-                      <img
-                        src={`data:image/png;base64,${ad.image_data}`}
-                        alt="Generated Ad"
-                        className="w-full h-48 object-cover rounded-lg mb-3"
-                      />
-                      <div className="text-sm text-gray-600 mb-2">
-                        <p>Type: {ad.ad_type} | Style: {ad.style}</p>
-                        <p>Created: {new Date(ad.created_at).toLocaleDateString()}</p>
-                      </div>
-                      <button
-                        onClick={() => downloadImage(ad.image_data, `${selectedCompany.name}_ad_${ad.id}.png`)}
-                        className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Download
-                      </button>
-                    </div>
-                  ))}
+            {/* Example Prompts */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">💡 Example Prompts</h3>
+              <div className="grid grid-cols-1 gap-2">
+                {examplePrompts.map((example, index) => (
+                  <button
+                    key={index}
+                    onClick={() => fillExamplePrompt(example)}
+                    className="text-left px-3 py-2 rounded-lg bg-gray-50 hover:bg-purple-50 hover:border-purple-200 border border-gray-200 transition-all duration-200 text-sm"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Generated Image */}
+          <div className="space-y-6">
+            {currentImage && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">Generated Image</h3>
+                  <button
+                    onClick={() => downloadImage(currentImage.image_data, `generated_${currentImage.id}.png`)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  >
+                    Download
+                  </button>
+                </div>
+                
+                <img
+                  src={`data:image/png;base64,${currentImage.image_data}`}
+                  alt="Generated"
+                  className="w-full rounded-lg shadow-md"
+                />
+                
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>Prompt:</strong> {currentImage.prompt}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <strong>Style:</strong> {currentImage.style} | 
+                    <strong> Size:</strong> {currentImage.size} | 
+                    <strong> Created:</strong> {new Date(currentImage.created_at).toLocaleString()}
+                  </p>
                 </div>
               </div>
             )}
+
+            {/* History */}
+            {showHistory && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">
+                  Image History ({generatedImages.length})
+                </h3>
+                
+                {generatedImages.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No images generated yet. Create your first image!</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                    {generatedImages.map((image) => (
+                      <div
+                        key={image.id}
+                        className="border border-gray-200 rounded-lg p-2 hover:border-purple-300 transition-colors cursor-pointer"
+                        onClick={() => setCurrentImage(image)}
+                      >
+                        <img
+                          src={`data:image/png;base64,${image.image_data}`}
+                          alt="Generated"
+                          className="w-full h-24 object-cover rounded-md mb-2"
+                        />
+                        <p className="text-xs text-gray-600 truncate">
+                          {image.prompt}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(image.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </main>
     </div>
   );
